@@ -73,6 +73,8 @@ class AnnealingSimulated:
 
     def generate_solution_by_machines(self, cell_borders):
         # TODO: Падает на некоторых количествах кластерах и всегда падает на неквадратных данных
+        if len(cell_borders.shape) == 2:
+            cell_borders = cell_borders[..., 1]
         machines_matrix = np.zeros((self.machines_amount, len(cell_borders)))
         for j in range(len(cell_borders)):
             if j == len(cell_borders) - 1:
@@ -94,7 +96,7 @@ class AnnealingSimulated:
         return cell_borders
 
     def single_move(self):
-        # TODO: Возможно, забагован. Также ЗАКОММЕНТИТЬ, а то нихрена не понятно
+        # TODO: Возможно, забагован. Есть явный баг с индексами, перезаписывается верхняя граница и она вылетает за массив
         matrix = self.matrix.copy()
         best_objective_value = None
         best_matrix = None
@@ -111,11 +113,11 @@ class AnnealingSimulated:
             # Создаем столбцы текущей клетки
             source_iter_range = range(low_border, high_border)
             # Берем НИЖНИЕ границы других клеток, кроме той клетки, в которой сейчас находимся
-            target_positions = [border for border in self.cell_borders if (border != self.cell_borders[idx]).all()]
+            target_positions = [(k, border) for k, border in enumerate(self.cell_borders) if (border != self.cell_borders[idx]).all()]
             # Итерируем по столбцам текущей клетки
             for source_position in source_iter_range:
                 source_part = matrix[..., source_position]
-                for target_position in target_positions:
+                for k, target_position in target_positions:
                     # Вставляем текущий столбец перед началом таргетной клетки (на ее нижнюю границу)
                     tmp_matrix = np.insert(matrix, target_position[1], source_part, axis=1)
                     tmp_borders = self.cell_borders.copy()
