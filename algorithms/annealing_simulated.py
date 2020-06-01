@@ -1,7 +1,12 @@
 import numpy as np
 from itertools import combinations, permutations
-import pandas
 import scipy.cluster.hierarchy as spc
+
+'''np.asarray([[1,0,0,1,0],
+                       [0,1,1,0,1],
+                       [1,0,0,0,0],
+                       [0,1,1,0,0],
+                       [0,0,0,1,0]])'''
 
 
 class AnnealingSimulated:
@@ -47,14 +52,24 @@ class AnnealingSimulated:
     def generate_solution_by_machines(self, cells_border):
         machines_matrix = np.zeros((self.machines_amount, len(cells_border)))
         for i in range(self.machines_amount):
-            for j in range(len(cells_border)-1):
-                low_border = cells_border[j]
-                high_border = cells_border[j+1]
-                cell = self.matrix[..., low_border:high_border]
-                voids = np.count_nonzero(self.matrix) - np.count_nonzero(cell)
-                exceptional = cell.size - np.count_nonzero(cell)
+            for j in range(len(cells_border)):
+                if j == len(cells_border) -1:
+                    low_border = cells_border[j]
+                    high_border = None
+                else:
+                    low_border = cells_border[j]
+                    high_border = cells_border[j+1]
+                machine = self.matrix[i, low_border:high_border]
+                voids = np.count_nonzero(self.matrix[i]) - np.count_nonzero(machine)
+                exceptional = machine.size - np.count_nonzero(machine)
                 machines_matrix[i][j] = voids + exceptional
-
+        indexes = np.argmin(machines_matrix, axis=1)
+        idx_sort = np.argsort(indexes)
+        sorted_records_array = indexes[idx_sort]
+        _, cells_border_machines = np.unique(sorted_records_array, return_index=True)
+        self.matrix = self.matrix[idx_sort, ...]
+        cells_border = np.column_stack((cells_border_machines, cells_border))
+        return cells_border
 
 
 
