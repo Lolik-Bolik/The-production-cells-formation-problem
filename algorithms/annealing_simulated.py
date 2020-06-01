@@ -1,6 +1,8 @@
 import numpy as np
 from itertools import combinations, permutations
 import scipy.cluster.hierarchy as spc
+import random
+from math import exp
 
 '''np.asarray([[1,0,0,1,0],
                        [0,1,1,0,1],
@@ -16,7 +18,7 @@ class AnnealingSimulated:
         self.machines_amount = data.machines_amount
         self.parts_amount = data.parts_amount
         self.cell_borders = None
-        self.current_object_value = -1
+        self.target_value = -1
 
     def similar_measure(self):
         similarity_matrix = np.ones((self.parts_amount, self.parts_amount))
@@ -71,8 +73,12 @@ class AnnealingSimulated:
         self.matrix = self.matrix[..., idx_sort]
         return cell_borders
 
-    def generate_solution_by_machines(self, cell_borders):
+    def generate_solution_by_machines(self, matrix=None, cell_borders=None, save=True):
         # TODO: Падает на некоторых количествах кластерах и всегда падает на неквадратных данных
+        if matrix is None:
+            matrix = self.matrix
+        if cell_borders is None:
+            cell_borders = self.cell_borders
         if len(cell_borders.shape) == 2:
             cell_borders = cell_borders[..., 1]
         machines_matrix = np.zeros((self.machines_amount, len(cell_borders)))
@@ -83,19 +89,20 @@ class AnnealingSimulated:
             else:
                 low_border = cell_borders[j]
                 high_border = cell_borders[j+1]
-            machine = self.matrix[..., low_border:high_border]
-            voids = np.count_nonzero(self.matrix, axis=1) - np.count_nonzero(machine, axis=1)
+            machine = matrix[..., low_border:high_border]
+            voids = np.count_nonzero(matrix, axis=1) - np.count_nonzero(machine, axis=1)
             exceptional = machine.shape[1] - np.count_nonzero(machine, axis=1)
             machines_matrix[..., j] = voids + exceptional
         cell_clusters = np.argmin(machines_matrix, axis=1)
         idx_sort = np.argsort(cell_clusters)
         sorted_cell_clusters = cell_clusters[idx_sort]
         _, cell_borders_machines = np.unique(sorted_cell_clusters, return_index=True)
-        self.matrix = self.matrix[idx_sort, ...]
-        self.cell_borders = np.column_stack((cell_borders_machines, cell_borders))
-        return cell_borders
+        if save:
+            self.matrix = matrix[idx_sort, ...]
+            self.cell_borders = np.column_stack((cell_borders_machines, cell_borders))
+        return matrix[idx_sort, ...], np.column_stack((cell_borders_machines, cell_borders))
 
-    def single_move(self):
+    def single_move(self, save=True):
         # TODO: Возможно, забагован. Есть явный баг с индексами, перезаписывается верхняя граница и она вылетает за массив
         matrix = self.matrix.copy()
         best_objective_value = None
@@ -138,13 +145,76 @@ class AnnealingSimulated:
                         best_objective_value = objective_value
                         best_matrix = tmp_matrix
                         best_borders = tmp_borders
-                    elif (objective_value - self.current_object_value) > (best_objective_value - self.current_object_value):
+                    elif (objective_value - self.target_value) > (best_objective_value - self.target_value):
                         best_objective_value = objective_value
                         best_matrix = tmp_matrix
                         best_borders = tmp_borders
-        self.matrix = best_matrix
-        self.cell_borders = best_borders
-        self.current_object_value = best_objective_value
+        if save:
+            self.matrix = best_matrix
+            self.cell_borders = best_borders
+            self.target_value = best_objective_value
+        return best_matrix, best_borders
+
+    def exchange_move(self):
+        raise NotImplementedError
+    
+    
+    def __call__(self, *args, **kwargs):
+        sim_m, sim_p = self.similar_measure()
+        cell_borders = self.generate_solution_for_parts(sim_m, kwargs['num_clusters'])
+        self.generate_solution_by_machines(cell_borders=cell_borders)
+        self.target_value = self.calculate_target_value()
+        print(self.target_value)
+        current_sol = self.matrix.copy()
+        current_borders = self.cell_borders.copy()
+        T = kwargs['T0']
+        T_f = kwargs['Tf']
+        cool_rate = kwargs['cooling_rate']
+        n_iter = kwargs['n_iter']
+        period = kwargs['period']
+        counter = 0
+        counter_MC = 0
+        counter_trap = 0
+        counter_stag = 0
+        cell_number = kwargs['num_clusters']
+        trap_stag_limit = kwargs['trap_stag_limit']
+        optimal_cell_number = cell_number
+        while counter_MC < n_iter and counter_trap < n_iter / 2:
+            new_sol, new_borders = self.single_move(save=False)
+            if counter % n_iter == 0:
+                #self.exchange_move
+                pass
+            new_sol, new_borders = self.generate_solution_by_machines(new_sol, new_borders, save=False)
+            new_target_value = self.calculate_target_value(new_sol, new_borders)
+            if new_target_value > self.target_value:
+                self.matrix = new_sol
+                self.cell_borders = new_borders
+                counter_stag = 0
+                counter_MC += 1
+            elif new_target_value == self.target_value:
+                current_sol = new_sol
+                current_borders = new_borders
+                counter_stag += 1
+                counter_MC += 1
+            else:
+                delta = new_target_value - self.calculate_target_value(current_sol, current_borders)
+                prob = random.random()
+                if exp(delta/T) > prob:
+                   current_sol = new_sol, counter_trap = 0
+                else:
+                    counter_trap += 1
+                counter_MC += 1
+            # Непонятно как имплементить 5ый пункт
+            if T <= T_f or counter_stag > trap_stag_limit:
+                self.matrix = current_sol
+                self.cell_borders = current_borders
+                self.target_value = self.calculate_target_value()
+                return
+            else:
+                T *= cool_rate
+                counter_MC = 0
+                counter += 1
+
 
 
 
