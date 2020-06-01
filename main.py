@@ -8,7 +8,7 @@ def main():
     data()
     ann_sim_method = AnnealingSimulated(data)
     sim_m, sim_p = ann_sim_method.similar_measure()
-    cells_border = ann_sim_method.generate_solution_for_parts(sim_m, 6)
+    cells_border = ann_sim_method.generate_solution_for_parts(sim_m, 2)
     ann_sim_method.generate_solution_by_machines(cells_border)
 
 

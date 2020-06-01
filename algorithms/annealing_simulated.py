@@ -11,10 +11,14 @@ import scipy.cluster.hierarchy as spc
 
 class AnnealingSimulated:
     def __init__(self, data, temperature=0.8):
-        self.matrix = data.matrix
+        self.matrix = np.asarray([[1,0,0,1,0],
+                       [0,1,1,0,1],
+                       [1,0,0,0,0],
+                       [0,1,1,0,0],
+                       [0,0,0,1,0]])#data.matrix
         self.temperature = temperature
-        self.machines_amount = data.machines_amount
-        self.parts_amount = data.parts_amount
+        self.machines_amount = 5#data.machines_amount
+        self.parts_amount = 5#data.parts_amount
 
     def similar_measure(self):
         similarity_matrix = np.ones((self.parts_amount, self.parts_amount))
@@ -51,18 +55,17 @@ class AnnealingSimulated:
 
     def generate_solution_by_machines(self, cells_border):
         machines_matrix = np.zeros((self.machines_amount, len(cells_border)))
-        for i in range(self.machines_amount):
-            for j in range(len(cells_border)):
-                if j == len(cells_border) -1:
-                    low_border = cells_border[j]
-                    high_border = None
-                else:
-                    low_border = cells_border[j]
-                    high_border = cells_border[j+1]
-                machine = self.matrix[i, low_border:high_border]
-                voids = np.count_nonzero(self.matrix[i]) - np.count_nonzero(machine)
-                exceptional = machine.size - np.count_nonzero(machine)
-                machines_matrix[i][j] = voids + exceptional
+        for j in range(len(cells_border)):
+            if j == len(cells_border) - 1:
+                low_border = cells_border[j]
+                high_border = None
+            else:
+                low_border = cells_border[j]
+                high_border = cells_border[j+1]
+            machine = self.matrix[..., low_border:high_border]
+            voids = np.count_nonzero(self.matrix, axis=1) - np.count_nonzero(machine, axis=1)
+            exceptional = machine.shape[1] - np.count_nonzero(machine, axis=1)
+            machines_matrix[..., j] = voids + exceptional
         indexes = np.argmin(machines_matrix, axis=1)
         idx_sort = np.argsort(indexes)
         sorted_records_array = indexes[idx_sort]
