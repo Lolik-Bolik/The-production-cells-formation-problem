@@ -13,7 +13,7 @@ class CellsProductionData:
             m, n = map(int, f.readline().split())
             self.machines_amount = m
             self.parts_amount = n
-            self.matrix = np.empty((self.machines_amount, self.parts_amount), dtype=int)
+            self.matrix = np.zeros((self.machines_amount, self.parts_amount), dtype=np.bool)
             for i in range(self.machines_amount):
                 for j in list(map(int, f.readline().split()))[1:]:
                     self.matrix[i][j - 1] = 1
