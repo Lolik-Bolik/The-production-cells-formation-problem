@@ -99,24 +99,36 @@ class AnnealingSimulated:
         best_objective_value = None
         best_matrix = None
         best_borders = None
+        # Пробегаем по всем границам
         for idx in range(len(self.cell_borders)):
+            # Если на последней итерации, берем last + 1 или matrix.shape, если это не последний столбец
             if idx == len(self.cell_borders) - 1:
                 low_border = self.cell_borders[idx][1]
                 high_border = low_border + 1 if low_border == matrix.shape[1] else matrix.shape[1]
             else:
                 low_border = self.cell_borders[idx][1]
                 high_border = self.cell_borders[idx + 1][1]
+            # Создаем столбцы текущей клетки
             source_iter_range = range(low_border, high_border)
-            target_positions = [(k, border) for k, border in enumerate(self.cell_borders) if (border != self.cell_borders[idx]).all()]
+            # Берем НИЖНИЕ границы других клеток, кроме той клетки, в которой сейчас находимся
+            target_positions = [border for border in self.cell_borders if (border != self.cell_borders[idx]).all()]
+            # Итерируем по столбцам текущей клетки
             for source_position in source_iter_range:
                 source_part = matrix[..., source_position]
-                for k, target_position in target_positions:
+                for target_position in target_positions:
+                    # Вставляем текущий столбец перед началом таргетной клетки (на ее нижнюю границу)
                     tmp_matrix = np.insert(matrix, target_position[1], source_part, axis=1)
                     tmp_borders = self.cell_borders.copy()
+                    # Если столбец прыгает направо
                     if source_position < target_position[1]:
+                        # Уменьшаем нижнюю границу таргетной клетки на 1
+                        # TODO: в случае нескольких кластеров, кажется, нужно еще уменьшить верхнюю границу источника на 1, если источник и таргет несмежны
                         tmp_borders[idx + 1][1] -= 1
                         tmp_matrix = np.delete(tmp_matrix, source_position, axis=1)
+                    # Если столбец прыгает налево
                     else:
+                        # Увеличиваем нижнюю границу текущей клетки на 1
+                        # TODO: в случае нескольких кластеров, кажется, нужно еще увеличить верхнюю границу таргета на 1, если источник и таргет несмежны
                         tmp_borders[idx][1] += 1
                         tmp_matrix = np.delete(tmp_matrix, source_position + 1, axis=1)
                     objective_value = self.calculate_target_value(tmp_matrix, tmp_borders)
