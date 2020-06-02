@@ -103,17 +103,21 @@ class AnnealingSimulated:
         return matrix[idx_sort, ...], np.column_stack((cell_borders_machines, cell_borders))
 
     def single_move(self, save=True):
-        # TODO: Возможно, забагован. Есть явный баг с индексами, перезаписывается верхняя граница и она вылетает за массив
         matrix = self.matrix.copy()
         best_objective_value = None
         best_matrix = None
         best_borders = None
+        overload = False
         # Пробегаем по всем границам
         for idx in range(len(self.cell_borders)):
             # Если на последней итерации, берем last + 1 или matrix.shape, если это не последний столбец
             if idx == len(self.cell_borders) - 1:
                 low_border = self.cell_borders[idx][1]
-                high_border = low_border + 1 if low_border == matrix.shape[1] else matrix.shape[1]
+                if low_border == matrix.shape[1]:
+                    high_border = low_border + 1
+                    overload = True
+                else:
+                    high_border = matrix.shape[1]
             else:
                 low_border = self.cell_borders[idx][1]
                 high_border = self.cell_borders[idx + 1][1]
@@ -131,16 +135,22 @@ class AnnealingSimulated:
                     # Если столбец прыгает направо
                     if source_position < target_position[1]:
                         # Уменьшаем нижнюю границу таргетной клетки на 1
-                        # TODO: в случае нескольких кластеров, кажется, нужно еще уменьшить верхнюю границу источника на 1, если источник и таргет несмежны
                         tmp_borders[idx + 1][1] -= 1
+                        # В случае нескольких кластеров нужно еще уменьшить верхнюю границу источника на 1, если источник и таргет несмежны
+                        if idx + 1 != k:
+                            tmp_borders[k][1] -= 1
                         tmp_matrix = np.delete(tmp_matrix, source_position, axis=1)
                     # Если столбец прыгает налево
                     else:
                         # Увеличиваем нижнюю границу текущей клетки на 1
-                        # TODO: в случае нескольких кластеров, кажется, нужно еще увеличить верхнюю границу таргета на 1, если источник и таргет несмежны
                         tmp_borders[idx][1] += 1
+                        # В случае нескольких кластеров нужно еще увеличить верхнюю границу таргета на 1, если источник и таргет несмежны
+                        if idx != k + 1:
+                            tmp_borders[k + 1][1] += 1
                         tmp_matrix = np.delete(tmp_matrix, source_position + 1, axis=1)
                     objective_value = self.calculate_target_value(tmp_matrix, tmp_borders)
+                    if overload:
+                        tmp_borders[-1, 1] -= 1
                     if best_objective_value is None:
                         best_objective_value = objective_value
                         best_matrix = tmp_matrix
@@ -199,8 +209,9 @@ class AnnealingSimulated:
             else:
                 delta = new_target_value - self.calculate_target_value(current_sol, current_borders)
                 prob = random.random()
-                if exp(delta/T) > prob:
-                   current_sol = new_sol, counter_trap = 0
+                if exp(-delta/T) > prob:
+                   current_sol = new_sol
+                   counter_trap = 0
                 else:
                     counter_trap += 1
                 counter_MC += 1
