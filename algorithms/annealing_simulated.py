@@ -294,7 +294,7 @@ class AnnealingSimulated:
                         counter_trap = 0
                         counter_stag = 0
                 else:
-                    return T, best_at_all_target, optimal_cell_number
+                    return T, best_at_all_target, best_at_all_borders, optimal_cell_number
             else:
                 T *= cool_rate
                 counter_MC = 0
