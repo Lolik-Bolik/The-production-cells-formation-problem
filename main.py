@@ -53,9 +53,6 @@ def main():
             for parts_id, parts_cluster_id in zip(parts, clusters_for_parts):
                 file.write(f'p{parts_id}_{parts_cluster_id} ')
             file.write('\n')
-
-
-
     toc = time()
     print(f'Final T: {T}\tFinal Objective: {objective}\t CellNum: {cell_num}\t Time {toc - tic}')
 
