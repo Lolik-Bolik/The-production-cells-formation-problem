@@ -97,6 +97,8 @@ class AnnealingSimulated:
         idx_sort = np.argsort(cell_clusters)
         sorted_cell_clusters = cell_clusters[idx_sort]
         _, cell_borders_machines = np.unique(sorted_cell_clusters, return_index=True)
+        if cell_borders_machines.shape != cell_borders.shape:
+            cell_borders_machines = np.append(cell_borders_machines, self.matrix.shape[0])
         if save:
             self.matrix = matrix[idx_sort, ...]
             self.cell_borders = np.column_stack((cell_borders_machines, cell_borders))
@@ -118,6 +120,7 @@ class AnnealingSimulated:
                     overload = True
                 else:
                     high_border = matrix.shape[1]
+                    overload = True
             else:
                 low_border = self.cell_borders[idx][1]
                 high_border = self.cell_borders[idx + 1][1]
