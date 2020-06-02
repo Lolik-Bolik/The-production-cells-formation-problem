@@ -3,7 +3,8 @@
 A simulated annealing algorithm for manufacturing cellformation problems on python.
 
 Time was measured in seconds
-Solutions provided in *solutions* directory
+
+Solutions provided in **solutions** directory
 |File name|Initial solution objective function value |Result solution objective function value |Start temperature|Final temperature|Optimal Number of clusters|Time    |
 |---------|----------|----------|----------|--------|--------|--------|
 |20x20.txt   | 0.2427   |0.4202 |3|0.00095 |5 |1.19 
