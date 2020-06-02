@@ -61,7 +61,9 @@ class AnnealingSimulated:
             cell = matrix[low_border[0]:high_border[0], low_border[1]:high_border[1]]
             n_1_in += np.count_nonzero(cell)
             n_0_in += cell.size - np.count_nonzero(cell)
-        return n_1_in / (n_1 + n_0_in)
+        n_1_out = n_1 - n_1_in
+        # return n_1_in / (n_1 + n_0_in)
+        return (n_1 - n_1_out) / (n_1 + n_0_in)
 
     def generate_solution_for_parts(self, similarity_matrix, num_clusters):
         pdist = spc.distance.pdist(similarity_matrix)
@@ -74,7 +76,6 @@ class AnnealingSimulated:
         return cell_borders
 
     def generate_solution_by_machines(self, matrix=None, cell_borders=None, save=True):
-        # TODO: Падает на некоторых количествах кластерах и всегда падает на неквадратных данных
         if matrix is None:
             matrix = self.matrix
         if cell_borders is None:
@@ -97,14 +98,14 @@ class AnnealingSimulated:
         idx_sort = np.argsort(cell_clusters)
         sorted_cell_clusters = cell_clusters[idx_sort]
         _, cell_borders_machines = np.unique(sorted_cell_clusters, return_index=True)
-        if cell_borders_machines.shape != cell_borders.shape:
+        while cell_borders_machines.shape != cell_borders.shape:
             cell_borders_machines = np.append(cell_borders_machines, self.matrix.shape[0])
         if save:
             self.matrix = matrix[idx_sort, ...]
             self.cell_borders = np.column_stack((cell_borders_machines, cell_borders))
         return matrix[idx_sort, ...], np.column_stack((cell_borders_machines, cell_borders))
 
-    def single_move(self, save=True):
+    def single_move(self):
         matrix = self.matrix.copy()
         best_objective_value = None
         best_matrix = None
@@ -138,7 +139,10 @@ class AnnealingSimulated:
                     # Если столбец прыгает направо
                     if source_position < target_position[1]:
                         # Уменьшаем нижнюю границу таргетной клетки на 1
-                        tmp_borders[idx + 1][1] -= 1
+                        try:
+                            tmp_borders[idx + 1][1] -= 1
+                        except:
+                            pass
                         # В случае нескольких кластеров нужно еще уменьшить верхнюю границу источника на 1, если источник и таргет несмежны
                         if idx + 1 != k:
                             tmp_borders[k][1] -= 1
@@ -149,7 +153,10 @@ class AnnealingSimulated:
                         tmp_borders[idx][1] += 1
                         # В случае нескольких кластеров нужно еще увеличить верхнюю границу таргета на 1, если источник и таргет несмежны
                         if idx != k + 1:
-                            tmp_borders[k + 1][1] += 1
+                            try:
+                                tmp_borders[k + 1][1] += 1
+                            except:
+                                pass
                         tmp_matrix = np.delete(tmp_matrix, source_position + 1, axis=1)
                     objective_value = self.calculate_target_value(tmp_matrix, tmp_borders)
                     if overload:
@@ -162,72 +169,138 @@ class AnnealingSimulated:
                         best_objective_value = objective_value
                         best_matrix = tmp_matrix
                         best_borders = tmp_borders
-        if save:
-            self.matrix = best_matrix
-            self.cell_borders = best_borders
-            self.target_value = best_objective_value
+
         return best_matrix, best_borders
 
     def exchange_move(self):
-        raise NotImplementedError
+        matrix = self.matrix.copy()
+        best_objective_value = None
+        best_matrix = None
+        for idx in range(len(self.cell_borders)):
+            if idx == len(self.cell_borders) - 1:
+                low_border = self.cell_borders[idx][1]
+                if low_border == matrix.shape[1]:
+                    high_border = low_border + 1
+                else:
+                    high_border = matrix.shape[1]
+            else:
+                low_border = self.cell_borders[idx][1]
+                high_border = self.cell_borders[idx + 1][1]
+            source_iter_range = range(low_border, high_border)
+            target_cells_indexes = [k for k, border in enumerate(self.cell_borders) if
+                                (border != self.cell_borders[idx]).all()]
+            for source_position in source_iter_range:
+                for k in target_cells_indexes:
+                    if k == len(self.cell_borders) - 1:
+                        low_target_border = self.cell_borders[k][1]
+                        if low_target_border == matrix.shape[1]:
+                            high_target_border = low_target_border + 1
+                        else:
+                            high_target_border = matrix.shape[1]
+                    else:
+                        low_target_border = self.cell_borders[k][1]
+                        high_target_border = self.cell_borders[k + 1][1]
+                    target_iter_range = range(low_target_border, high_target_border)
+                    for target_position in target_iter_range:
+                        tmp_matrix = matrix.copy()
+                        tmp_matrix[..., [source_position, target_position]] = tmp_matrix[..., [target_position, source_position]]
+                        objective_value = self.calculate_target_value(tmp_matrix, self.cell_borders)
+                        if best_objective_value is None:
+                            best_objective_value = objective_value
+                            best_matrix = tmp_matrix
+                        elif (objective_value - self.target_value) > (best_objective_value - self.target_value):
+                            best_objective_value = objective_value
+                            best_matrix = tmp_matrix
+        return best_matrix, self.cell_borders
     
-    
-    def __call__(self, *args, **kwargs):
+    def generate_initial_solution(self, cell_number):
         sim_m, sim_p = self.similar_measure()
-        cell_borders = self.generate_solution_for_parts(sim_m, kwargs['num_clusters'])
+        cell_borders = self.generate_solution_for_parts(sim_m, cell_number)
         self.generate_solution_by_machines(cell_borders=cell_borders)
         self.target_value = self.calculate_target_value()
-        print(self.target_value)
-        current_sol = self.matrix.copy()
-        current_borders = self.cell_borders.copy()
-        T = kwargs['T0']
+        best_sol_at_curr_cell = self.matrix.copy()
+        best_current_cell_borders = self.cell_borders.copy()
+        return best_sol_at_curr_cell, best_current_cell_borders
+
+
+    def __call__(self, *args, **kwargs):
+        cell_number = kwargs['num_clusters']
+        optimal_cell_number = cell_number
         T_f = kwargs['Tf']
         cool_rate = kwargs['cooling_rate']
         n_iter = kwargs['n_iter']
         period = kwargs['period']
+        trap_stag_limit = kwargs['trap_stag_limit']
+        max_cell_number = kwargs['max_cell_number']
+        T = kwargs['T0']
         counter = 0
         counter_MC = 0
         counter_trap = 0
         counter_stag = 0
-        cell_number = kwargs['num_clusters']
-        trap_stag_limit = kwargs['trap_stag_limit']
-        optimal_cell_number = cell_number
-        while counter_MC < n_iter and counter_trap < n_iter / 2:
-            new_sol, new_borders = self.single_move(save=False)
-            if counter % n_iter == 0:
-                #self.exchange_move
-                pass
-            new_sol, new_borders = self.generate_solution_by_machines(new_sol, new_borders, save=False)
-            new_target_value = self.calculate_target_value(new_sol, new_borders)
-            if new_target_value > self.target_value:
-                self.matrix = new_sol
-                self.cell_borders = new_borders
-                counter_stag = 0
-                counter_MC += 1
-            elif new_target_value == self.target_value:
-                current_sol = new_sol
-                current_borders = new_borders
-                counter_stag += 1
-                counter_MC += 1
-            else:
-                delta = new_target_value - self.calculate_target_value(current_sol, current_borders)
-                prob = random.random()
-                if exp(-delta/T) > prob:
-                   current_sol = new_sol
-                   counter_trap = 0
+        best_sol_at_all, best_at_all_borders = self.generate_initial_solution(cell_number)
+        best_sol_at_curr_cell = best_sol_at_all.copy()
+        best_current_cell_borders = best_at_all_borders.copy()
+        best_at_all_target = self.calculate_target_value(best_sol_at_all, best_at_all_borders)
+        print('Initial target: ', best_at_all_target)
+        initial_sol = True
+        generate_solution = True
+        while(1):
+            if initial_sol:
+                initial_sol = False
+            elif generate_solution:
+                best_sol_at_curr_cell, best_current_cell_borders = self.generate_initial_solution(cell_number)
+                generate_solution = False
+            while counter_MC < n_iter and counter_trap < n_iter / 2:
+                new_sol, new_borders = self.single_move()
+                if counter % period == 0:
+                    self.exchange_move()
+                neighborhood_sol, neigbourhood_borders = self.generate_solution_by_machines(new_sol, new_borders, save=False)
+                neigbourhood_target_value = self.calculate_target_value(neighborhood_sol, neigbourhood_borders)
+                if neigbourhood_target_value > self.calculate_target_value(best_sol_at_curr_cell, best_current_cell_borders):#self.target_value:
+                    best_sol_at_curr_cell = neighborhood_sol.copy()
+                    best_current_cell_borders = neigbourhood_borders.copy()
+                    self.matrix = neighborhood_sol.copy()
+                    self.cell_borders = neigbourhood_borders.copy()
+                    counter_stag = 0
+                    counter_MC += 1
+                elif neigbourhood_target_value == self.target_value:
+                    self.matrix = neighborhood_sol.copy()
+                    self.cell_borders = neigbourhood_borders.copy()
+                    counter_stag += 1
+                    counter_MC += 1
                 else:
-                    counter_trap += 1
-                counter_MC += 1
-            # Непонятно как имплементить 5ый пункт
-            if T <= T_f or counter_stag > trap_stag_limit:
-                self.matrix = current_sol
-                self.cell_borders = current_borders
-                self.target_value = self.calculate_target_value()
-                return
+                    delta = neigbourhood_target_value - self.target_value
+                    prob = random.random()
+
+                    if exp(-delta/T) > prob:
+                        self.matrix = neighborhood_sol.copy()
+                        self.cell_borders = neigbourhood_borders.copy()
+                        counter_trap = 0
+                    else:
+                        counter_trap += 1
+                    counter_MC += 1
+            if T < T_f or counter_stag >= trap_stag_limit:
+                if self.calculate_target_value(best_sol_at_curr_cell, best_current_cell_borders) > self.calculate_target_value(best_sol_at_all, best_at_all_borders)\
+                   and cell_number < max_cell_number:
+                        best_sol_at_all = best_sol_at_curr_cell.copy()
+                        best_at_all_borders = best_current_cell_borders.copy()
+                        best_at_all_target = self.calculate_target_value(best_sol_at_all, best_at_all_borders)
+                        optimal_cell_number = cell_number
+                        cell_number += 1
+                        T = kwargs['T0']
+                        generate_solution = True
+                        counter = 0
+                        counter_MC = 0
+                        counter_trap = 0
+                        counter_stag = 0
+                else:
+                    return T, best_at_all_target, optimal_cell_number
             else:
                 T *= cool_rate
                 counter_MC = 0
+                counter_MC += 1
                 counter += 1
+
 
 
 
