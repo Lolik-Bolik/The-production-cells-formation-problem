@@ -16,5 +16,3 @@ Solutions provided in **solutions** directory
 ## Team Members
 - *[Alexander Slavutin](https://github.com/AlexanderSlav)* 
 - *[Pavel Semkin](https://github.com/PVSemk)*
-
-Copyright (C) 2020-2021, Bolik&Lolik Inc. , all rights reserved.
